@@ -66,19 +66,188 @@
 
 (set-face-attribute 'default nil
                     :family "Menlo"
-                    :height 180)
+                    :height 160)
+
+(blink-cursor-mode -1) ;; Disable cursor blinking
+
+;; Custom settings
+(setq scroll-margin 0 ;; better scrolling
+      scroll-conservatively 101 ;;-
+      scroll-preserve-screen-position t ;;-
+      scroll-down-aggressively 0.01 ;;-
+      scroll-up-aggressively 0.01 ;;-
+      fast-but-imprecise-scrolling t
+      jit-lock-defer-time 0 ;; fontification is deferred when input is loading
+      highlight-nonselected-windows nil
+      echo-keystrokes 0.02
+      require-final-newline t ;; newline at the end of files
+      select-enable-clipboard t ;; make cutting and pasting use the clipboard
+      ring-bell-function 'ignore ;; ignore
+      large-file-warning-threshold 100000000 ;; increase the file warning threshold
+      help-window-select t ;; automatically select help windows, so that they can be deleted.
+      confirm-kill-processes nil ;; don't confirm when killing processes
+      inhibit-compacting-font-caches t ;; don't trigger GC when loading larger fonts
+      make-backup-files nil ;; Stop saving backups since they're quite useless in the modern age
+      create-lockfiles nil ;; Don't create lock files.
+      auto-save-default nil ;; Stop auto saving files, since they're not needed
+      delete-old-versions t ;; Delete excess backups silently
+      x-stretch-cursor t ;; Make the cursor the size of the underlying character.
+      frame-resize-pixelwise t ;; Fix the window not being fullscreen and leaving a gap
+      frame-title-format "%b - academia" ;; change window title
+      vc-follow-symlinks t ;; When opening a file, always follow symlinks
+      vc-handled-backends nil
+      auto-window-vscroll nil ;; Speed up line movement
+      blink-matching-paren nil
+      use-dialog-box nil
+      undo-limit 100000000 ;; Increase undo limit
+
+      ;; Make numbers relative such that evil navigation is easier
+      display-line-numbers-type 'relative
+      display-line-numbers-width 3
+      display-line-numbers-widen t)
+
+(global-auto-revert-mode 1) ;; Update a buffer if a file changes on disk.
+;; Cleanup whitespaces
+(add-hook 'before-save-hook 'whitespace-cleanup)
+(setq-default sentence-end-double-space nil)
+
+;; Shorten answers
+(if (boundp 'use-short-answers)
+    (setq use-short-answers t))
+
+(global-subword-mode) ;; Make it so that 'w' in evil moves to the next camel case word
+(global-visual-line-mode 1) ;; Add line wrapping
+
+(global-subword-mode) ;; Make it so that 'w' in evil moves to the next camel case word
+
+
+;; Make ESC quit prompts
+(global-set-key (kbd "<escape>") 'keyboard-escape-quit)
 
 (setq show-paren-delay 0.0) ;; Remove delay to display matching parenthesy
 (show-paren-mode 1) ;; Show matching parenthesies
-(custom-set-variables
- ;; custom-set-variables was added by Custom.
- ;; If you edit it by hand, you could mess it up, so be careful.
- ;; Your init file should contain only one such instance.
- ;; If there is more than one, they won't work right.
- '(package-selected-packages '(use-package)))
-(custom-set-faces
- ;; custom-set-faces was added by Custom.
- ;; If you edit it by hand, you could mess it up, so be careful.
- ;; Your init file should contain only one such instance.
- ;; If there is more than one, they won't work right.
- )
+
+(load-theme 'modus-operandi)
+
+;;; evil
+;; key bindings from vim in emacs.
+(use-package evil
+  :ensure t
+  :init
+  (setq evil-want-integration t)
+  (setq evil-want-keybinding nil)
+  (evil-mode 1)
+  :config
+
+  ;; Set leader key to space
+  (evil-set-leader 'normal (kbd "SPC"))
+
+  ;; Define different splits
+  (setq evil-vsplit-window-right t)
+  (setq evil-split-window-below t)
+  (setq evil-vsplit-window-right t)
+  (setq evil-split-window-below t)
+
+  ;; Such that there is no need to use the ESC-key.
+  (define-key evil-insert-state-map (kbd "C-j") 'evil-normal-state)
+  (define-key evil-insert-state-map (kbd "C-f") 'evil-normal-state)
+
+  ;; Better marking keywords using the custom functions below.
+  (evil-define-key 'normal 'global (kbd "<leader>n") 'nro/mark-word)
+  (evil-define-key 'normal 'global (kbd "<leader>m") 'nro/mark-construct-dwim)
+
+  ;; Some keybindings for better window navigation
+  (evil-define-key 'normal 'global (kbd "<leader>wj") 'evil-window-bottom)
+  (evil-define-key 'normal 'global (kbd "<leader>wh") 'evil-window-left)
+  (evil-define-key 'normal 'global (kbd "<leader>wl") 'evil-window-right)
+  (evil-define-key 'normal 'global (kbd "<leader>wk") 'evil-window-up)
+
+  ;; Other leader keybindings
+  (evil-define-key 'normal 'global (kbd "<leader>p") 'find-file)
+  (evil-define-key 'normal 'global (kbd "<leader>d") 'dired)
+  (evil-define-key 'normal 'global (kbd "<leader>k") 'kill-this-buffer)
+
+  ;; Save a file.
+  (evil-define-key 'normal 'global (kbd "<leader>s") 'save-buffer)
+
+  ;; Use visual line motions even outside of visual-line-mode buffers
+  (evil-global-set-key 'motion "j" 'evil-next-visual-line)
+  (evil-global-set-key 'motion "k" 'evil-previous-visual-line)
+
+  ;; (setq evil-insert-state-cursor 'hbar)
+
+  (evil-set-initial-state 'messages-buffer-mode 'normal))
+
+;;; evil-collection
+;; more evil support for many different modes.
+(use-package evil-collection
+  :after evil
+  :ensure t
+  :config
+  (evil-collection-init))
+
+;;; vertico
+;; a minimal completion framework
+(use-package vertico
+  :ensure t
+  :custom
+  (vertico-count 14)
+  (vertico-multiform-categories
+   '((file flat)))
+  :init
+  (vertico-mode)
+  (vertico-multiform-mode))
+
+(advice-add #'vertico--format-candidate :around
+            (lambda (orig cand prefix suffix index _start)
+              (setq cand (funcall orig cand prefix suffix index _start))
+              (concat
+               (if (= vertico--index index)
+                   (propertize "> " 'face 'vertico-current)
+                 "  ")
+               cand)))
+
+(use-package org-modern
+  :ensure t)
+
+;; Add frame borders and window dividers
+(modify-all-frames-parameters
+ '((right-divider-width . 40)
+   (internal-border-width . 40)))
+(dolist (face '(window-divider
+                window-divider-first-pixel
+                window-divider-last-pixel))
+  (face-spec-reset-face face)
+  (set-face-foreground face (face-attribute 'default :background)))
+(set-face-background 'fringe (face-attribute 'default :background))
+
+(setq
+ ;; Edit settings
+ org-auto-align-tags nil
+ org-tags-column 0
+ org-catch-invisible-edits 'show-and-error
+ org-special-ctrl-a/e t
+ org-insert-heading-respect-content t
+
+ ;; Org styling, hide markup etc.
+ org-hide-emphasis-markers t
+ org-pretty-entities t
+ org-ellipsis "…"
+
+ ;; Agenda styling
+ org-agenda-tags-column 0
+ org-agenda-block-separator ?─
+ org-agenda-time-grid
+ '((daily today require-timed)
+   (800 1000 1200 1400 1600 1800 2000)
+   " ┄┄┄┄┄ " "┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄")
+ org-agenda-current-time-string
+ "⭠ now ─────────────────────────────────────────────────")
+
+(global-org-modern-mode)
+
+;; Load custom variables from a custom.el file, such that they don't clutter up
+;; main init.el file.
+(setq custom-file (locate-user-emacs-file "custom.el"))
+(when (file-exists-p custom-file)
+  (load custom-file))
